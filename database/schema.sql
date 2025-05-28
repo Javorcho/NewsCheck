@@ -51,3 +51,24 @@ AFTER UPDATE ON news_requests
 BEGIN
     UPDATE news_requests SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
 END; 
+
+CREATE TABLE IF NOT EXISTS failed_logins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    attempted_username TEXT NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    attempt_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS blocked_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    reason TEXT,
+    blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+INSERT INTO blocked_users (user_id, reason)
+VALUES (3, '5 consecutive failed login attempts');
