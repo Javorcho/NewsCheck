@@ -1,28 +1,18 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import NewsRequest, User
+from app.services.news_analyzer import NewsAnalyzer
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import validators
 import requests
 from datetime import datetime
 
 news_bp = Blueprint('news', __name__)
-
-def analyze_news(content, is_url):
-    """
-    Placeholder function for news analysis.
-    In a real implementation, this would use ML models or external APIs.
-    """
-    # TODO: Implement actual news analysis logic
-    # This is just a dummy implementation
-    return {
-        'result': 'reliable' if len(content) > 100 else 'unreliable',
-        'confidence': 0.85
-    }
+news_analyzer = NewsAnalyzer()
 
 @news_bp.route('/analyze', methods=['POST'])
 @jwt_required()
-def submit_news():
+async def submit_news():
     current_user_id = get_jwt_identity()
     data = request.get_json()
     
@@ -37,13 +27,14 @@ def submit_news():
             response = requests.get(content, timeout=5)
             if response.status_code != 200:
                 return jsonify({'error': 'Could not fetch URL content'}), 400
-            # In a real implementation, you would extract the text content from the HTML
-            # For now, we'll just use the URL itself
         except requests.exceptions.RequestException:
             return jsonify({'error': 'Could not fetch URL content'}), 400
     
-    # Perform analysis
-    analysis = analyze_news(content, is_url)
+    # Perform analysis using our new analyzer
+    analysis = await news_analyzer.analyze_news(content, is_url)
+    
+    if analysis.get('result') == 'error':
+        return jsonify({'error': 'Analysis failed', 'details': analysis.get('error')}), 500
     
     # Create news request record
     news_request = NewsRequest(
@@ -57,10 +48,12 @@ def submit_news():
     db.session.add(news_request)
     db.session.commit()
     
+    # Return detailed analysis results
     return jsonify({
         'id': news_request.id,
         'result': analysis['result'],
         'confidence': analysis['confidence'],
+        'details': analysis['details'],
         'created_at': news_request.created_at.isoformat()
     }), 201
 
