@@ -7,6 +7,7 @@ import { Layout } from './components/Layout/Layout';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { Home } from './components/Home/Home';
+import { Profile } from './components/Profile/Profile';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -101,7 +102,7 @@ function App() {
                                 element={
                                     <ProtectedRoute>
                                         <Layout>
-                                            <div>Profile Page</div>
+                                            <Profile />
                                         </Layout>
                                     </ProtectedRoute>
                                 }
