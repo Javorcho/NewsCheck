@@ -8,6 +8,7 @@ import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { Home } from './components/Home/Home';
 import { Profile } from './components/Profile/Profile';
+import { AdminPanel } from './components/Admin/AdminPanel';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -112,7 +113,7 @@ function App() {
                                 element={
                                     <AdminRoute>
                                         <Layout>
-                                            <div>Admin Panel</div>
+                                            <AdminPanel />
                                         </Layout>
                                     </AdminRoute>
                                 }
