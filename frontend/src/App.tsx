@@ -10,6 +10,7 @@ import { Home } from './components/Home/Home';
 import { Profile } from './components/Profile/Profile';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { History } from './components/History/History';
+import { MyFeedback } from './components/Feedback/MyFeedback';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -94,7 +95,7 @@ function App() {
                                 element={
                                     <ProtectedRoute>
                                         <Layout>
-                                            <div>My Feedback Page</div>
+                                            <MyFeedback />
                                         </Layout>
                                     </ProtectedRoute>
                                 }
