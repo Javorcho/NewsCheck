@@ -9,6 +9,7 @@ import { Register } from './components/Auth/Register';
 import { Home } from './components/Home/Home';
 import { Profile } from './components/Profile/Profile';
 import { AdminPanel } from './components/Admin/AdminPanel';
+import { History } from './components/History/History';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -83,7 +84,7 @@ function App() {
                                 element={
                                     <ProtectedRoute>
                                         <Layout>
-                                            <div>History Page</div>
+                                            <History />
                                         </Layout>
                                     </ProtectedRoute>
                                 }
