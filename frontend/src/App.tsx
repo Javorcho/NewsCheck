@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { WebSocketProvider } from './contexts/WebSocketContext';
 import { Layout } from './components/Layout/Layout';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
@@ -66,62 +67,64 @@ function App() {
             <ThemeProvider theme={theme}>
                 <CssBaseline />
                 <AuthProvider>
-                    <Router>
-                        <Routes>
-                            <Route
-                                path="/"
-                                element={
-                                    <ProtectedRoute>
-                                        <Layout>
-                                            <Home />
-                                        </Layout>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route path="/login" element={<Login />} />
-                            <Route path="/register" element={<Register />} />
-                            <Route
-                                path="/history"
-                                element={
-                                    <ProtectedRoute>
-                                        <Layout>
-                                            <History />
-                                        </Layout>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="/my-feedback"
-                                element={
-                                    <ProtectedRoute>
-                                        <Layout>
-                                            <MyFeedback />
-                                        </Layout>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="/profile"
-                                element={
-                                    <ProtectedRoute>
-                                        <Layout>
-                                            <Profile />
-                                        </Layout>
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="/admin/*"
-                                element={
-                                    <AdminRoute>
-                                        <Layout>
-                                            <AdminPanel />
-                                        </Layout>
-                                    </AdminRoute>
-                                }
-                            />
-                        </Routes>
-                    </Router>
+                    <WebSocketProvider>
+                        <Router>
+                            <Routes>
+                                <Route
+                                    path="/"
+                                    element={
+                                        <ProtectedRoute>
+                                            <Layout>
+                                                <Home />
+                                            </Layout>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route path="/login" element={<Login />} />
+                                <Route path="/register" element={<Register />} />
+                                <Route
+                                    path="/history"
+                                    element={
+                                        <ProtectedRoute>
+                                            <Layout>
+                                                <History />
+                                            </Layout>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="/my-feedback"
+                                    element={
+                                        <ProtectedRoute>
+                                            <Layout>
+                                                <MyFeedback />
+                                            </Layout>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="/profile"
+                                    element={
+                                        <ProtectedRoute>
+                                            <Layout>
+                                                <Profile />
+                                            </Layout>
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="/admin/*"
+                                    element={
+                                        <AdminRoute>
+                                            <Layout>
+                                                <AdminPanel />
+                                            </Layout>
+                                        </AdminRoute>
+                                    }
+                                />
+                            </Routes>
+                        </Router>
+                    </WebSocketProvider>
                 </AuthProvider>
             </ThemeProvider>
         </QueryClientProvider>
