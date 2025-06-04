@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_CONFIG=production
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/newscheck
+    depends_on:
+      - db
+    volumes:
+      - ./backend/logs:/app/logs
+    networks:
+      - newscheck-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - newscheck-network
+    restart: unless-stopped
+
+  db:
+    image: postgres:13-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=newscheck
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - newscheck-network
+    restart: unless-stopped
+
+networks:
+  newscheck-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
