@@ -1,7 +1,13 @@
 from flask import Blueprint, request, jsonify
 from app import db
 from app.models import User, FailedLogin, BlockedUser
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import (
+    create_access_token,
+    create_refresh_token,
+    jwt_required,
+    get_jwt_identity,
+    get_jwt
+)
 from datetime import datetime, timedelta
 import re
 from email_validator import validate_email, EmailNotValidError
@@ -38,137 +44,144 @@ def record_failed_login(user_id, ip_address):
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
+    """Register a new user."""
     data = request.get_json()
     
     # Validate required fields
-    required_fields = ['username', 'email', 'password']
-    if not all(field in data for field in required_fields):
+    if not all(k in data for k in ('username', 'email', 'password')):
         return jsonify({'error': 'Missing required fields'}), 400
-        
-    # Validate username
-    username = data['username'].strip()
-    if not re.match(r'^[a-zA-Z0-9_]{3,20}$', username):
-        return jsonify({'error': 'Invalid username format'}), 400
-        
-    # Validate email
+    
+    # Validate email format
     try:
-        email = validate_email(data['email'].strip()).email
+        validate_email(data['email'])
     except EmailNotValidError:
         return jsonify({'error': 'Invalid email format'}), 400
-        
-    # Validate password
-    password = data['password']
-    if len(password) < 8:
-        return jsonify({'error': 'Password must be at least 8 characters long'}), 400
-        
+    
     # Check if username or email already exists
-    if User.query.filter_by(username=username).first():
-        return jsonify({'error': 'Username already taken'}), 400
-    if User.query.filter_by(email=email).first():
-        return jsonify({'error': 'Email already registered'}), 400
-        
+    if User.query.filter_by(username=data['username']).first():
+        return jsonify({'error': 'Username already exists'}), 409
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already exists'}), 409
+    
     # Create new user
-    user = User(username=username, email=email)
-    user.set_password(password)
-    
-    db.session.add(user)
-    db.session.commit()
-    
-    # Create access token
-    access_token = create_access_token(identity=user.id)
-    
-    return jsonify({
-        'message': 'Registration successful',
-        'access_token': access_token,
-        'user': {
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'is_admin': user.is_admin
-        }
-    }), 201
+    try:
+        user = User(
+            username=data['username'],
+            email=data['email'],
+            password=data['password']
+        )
+        db.session.add(user)
+        db.session.commit()
+        
+        # Create tokens
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
+        
+        return jsonify({
+            'message': 'User registered successfully',
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'user': user.to_dict()
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    """Login user and return JWT tokens."""
     data = request.get_json()
     
     if not all(k in data for k in ('username', 'password')):
         return jsonify({'error': 'Missing username or password'}), 400
-        
-    # Check if IP is blocked
-    ip_address = request.remote_addr
-    if is_ip_blocked(ip_address):
-        return jsonify({'error': 'Too many failed attempts. Please try again later'}), 429
-        
+    
     user = User.query.filter_by(username=data['username']).first()
     
-    if user and user.check_password(data['password']):
-        if not user.is_active:
-            return jsonify({'error': 'Account is deactivated'}), 403
-            
-        # Update last login time
-        user.last_login = datetime.utcnow()
-        db.session.commit()
-        
-        access_token = create_access_token(identity=user.id)
-        return jsonify({
-            'access_token': access_token,
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'is_admin': user.is_admin
-            }
-        }), 200
-    else:
+    if not user or not user.check_password(data['password']):
         if user:
-            record_failed_login(user.id, ip_address)
+            user.increment_failed_login()
+            # Block user after 5 failed attempts
+            if user.failed_login_attempts >= 5:
+                user.block_user(duration_minutes=30, reason='Too many failed login attempts')
         return jsonify({'error': 'Invalid username or password'}), 401
-
-@auth_bp.route('/me', methods=['GET'])
-@jwt_required()
-def get_current_user():
-    current_user_id = get_jwt_identity()
-    user = User.query.get_or_404(current_user_id)
+    
+    if user.is_blocked_now():
+        return jsonify({
+            'error': 'Account is blocked',
+            'blocked_until': user.blocked_until.isoformat() if user.blocked_until else None
+        }), 403
+    
+    if not user.is_active:
+        return jsonify({'error': 'Account is deactivated'}), 403
+    
+    # Reset failed login attempts and update last login
+    user.reset_failed_login()
+    
+    # Create tokens
+    access_token = create_access_token(identity=user.id)
+    refresh_token = create_refresh_token(identity=user.id)
     
     return jsonify({
-        'id': user.id,
-        'username': user.username,
-        'email': user.email,
-        'is_admin': user.is_admin,
-        'created_at': user.created_at.isoformat(),
-        'last_login': user.last_login.isoformat() if user.last_login else None
+        'access_token': access_token,
+        'refresh_token': refresh_token,
+        'user': user.to_dict()
     }), 200
 
-@auth_bp.route('/me', methods=['PUT'])
+@auth_bp.route('/refresh', methods=['POST'])
+@jwt_required(refresh=True)
+def refresh():
+    """Refresh access token."""
+    current_user_id = get_jwt_identity()
+    access_token = create_access_token(identity=current_user_id)
+    return jsonify({'access_token': access_token}), 200
+
+@auth_bp.route('/profile', methods=['GET'])
 @jwt_required()
-def update_current_user():
+def get_profile():
+    """Get user profile."""
+    current_user_id = get_jwt_identity()
+    user = User.query.get_or_404(current_user_id)
+    return jsonify(user.to_dict()), 200
+
+@auth_bp.route('/profile', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    """Update user profile."""
     current_user_id = get_jwt_identity()
     user = User.query.get_or_404(current_user_id)
     data = request.get_json()
     
-    if 'email' in data:
-        try:
-            new_email = validate_email(data['email'].strip()).email
-            if User.query.filter(User.email == new_email, User.id != current_user_id).first():
-                return jsonify({'error': 'Email already registered'}), 400
-            user.email = new_email
-        except EmailNotValidError:
-            return jsonify({'error': 'Invalid email format'}), 400
+    try:
+        if 'email' in data:
+            # Validate email format
+            try:
+                validate_email(data['email'])
+            except EmailNotValidError:
+                return jsonify({'error': 'Invalid email format'}), 400
             
-    if 'password' in data:
-        if len(data['password']) < 8:
-            return jsonify({'error': 'Password must be at least 8 characters long'}), 400
-        user.set_password(data['password'])
+            # Check if email is already taken
+            if User.query.filter(User.email == data['email'], User.id != current_user_id).first():
+                return jsonify({'error': 'Email already exists'}), 409
+            user.email = data['email']
         
-    db.session.commit()
-    
-    return jsonify({
-        'message': 'Profile updated successfully',
-        'user': {
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'is_admin': user.is_admin
-        }
-    }), 200 
+        if 'password' in data:
+            user.set_password(data['password'])
+        
+        db.session.commit()
+        return jsonify({
+            'message': 'Profile updated successfully',
+            'user': user.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    """Logout user (client-side token invalidation)."""
+    # Note: JWT tokens are stateless, so we can't invalidate them server-side
+    # The client should remove the tokens
+    return jsonify({'message': 'Successfully logged out'}), 200 

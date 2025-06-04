@@ -1,47 +1,53 @@
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
-from datetime import timedelta
+from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import os
-from dotenv import load_dotenv
+from .db import init_db
+from .routes.auth import auth_bp
+from .routes.news import news_bp
+from ..config import config
 
-# Load environment variables
-load_dotenv()
-
-# Initialize extensions
-db = SQLAlchemy()
-migrate = Migrate()
-jwt = JWTManager()
-
-def create_app():
-    app = Flask(__name__)
+def create_app(config_name=None):
+    """Create and configure the Flask application."""
+    if config_name is None:
+        config_name = os.environ.get('FLASK_CONFIG', 'default')
     
-    # Configure Flask app
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///newscheck.db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-key')
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=1)
+    app = Flask(__name__, instance_relative_config=True)
     
-    # Initialize extensions with app
-    db.init_app(app)
-    migrate.init_app(app, db)
-    jwt.init_app(app)
+    # Load configuration
+    app.config.from_object(config[config_name])
+    config[config_name].init_app(app)
+    
+    # Initialize extensions
+    init_db(app)
+    jwt = JWTManager(app)
+    CORS(app, resources={r"/api/*": {"origins": app.config['CORS_ORIGINS']}})
+    
+    # Initialize rate limiter
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"]
+    )
     
     # Register blueprints
-    from app.routes.auth import auth_bp
-    from app.routes.news import news_bp
-    from app.routes.feedback import feedback_bp
-    from app.routes.admin import admin_bp
-    
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(news_bp, url_prefix='/api/news')
-    app.register_blueprint(feedback_bp, url_prefix='/api/feedback')
-    app.register_blueprint(admin_bp, url_prefix='/api/admin')
     
-    # Create database tables
-    with app.app_context():
-        db.create_all()
-        
+    # Error handlers
+    @app.errorhandler(404)
+    def not_found(error):
+        return {'error': 'Not found'}, 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        app.logger.error(f'Server Error: {error}')
+        return {'error': 'Internal server error'}, 500
+    
+    @app.errorhandler(429)
+    def ratelimit_handler(error):
+        return {'error': 'Rate limit exceeded'}, 429
+    
     return app 
