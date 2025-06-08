@@ -12,6 +12,8 @@ import { Profile } from './components/Profile/Profile';
 import { AdminPanel } from './components/Admin/AdminPanel';
 import { History } from './components/History/History';
 import { MyFeedback } from './components/Feedback/MyFeedback';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { Navigation } from './components/Navigation';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -31,21 +33,6 @@ const theme = createTheme({
     },
 });
 
-// Protected Route component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { user, loading } = useAuth();
-
-    if (loading) {
-        return <div>Loading...</div>;
-    }
-
-    if (!user) {
-        return <Navigate to="/login" />;
-    }
-
-    return <>{children}</>;
-};
-
 // Admin Route component
 const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { user, loading } = useAuth();
@@ -61,7 +48,7 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return <>{children}</>;
 };
 
-function App() {
+const App: React.FC = () => {
     return (
         <QueryClientProvider client={queryClient}>
             <ThemeProvider theme={theme}>
@@ -69,66 +56,74 @@ function App() {
                 <AuthProvider>
                     <WebSocketProvider>
                         <Router>
-                            <Routes>
-                                <Route
-                                    path="/"
-                                    element={
-                                        <ProtectedRoute>
-                                            <Layout>
-                                                <Home />
-                                            </Layout>
-                                        </ProtectedRoute>
-                                    }
-                                />
-                                <Route path="/login" element={<Login />} />
-                                <Route path="/register" element={<Register />} />
-                                <Route
-                                    path="/history"
-                                    element={
-                                        <ProtectedRoute>
-                                            <Layout>
-                                                <History />
-                                            </Layout>
-                                        </ProtectedRoute>
-                                    }
-                                />
-                                <Route
-                                    path="/my-feedback"
-                                    element={
-                                        <ProtectedRoute>
-                                            <Layout>
-                                                <MyFeedback />
-                                            </Layout>
-                                        </ProtectedRoute>
-                                    }
-                                />
-                                <Route
-                                    path="/profile"
-                                    element={
-                                        <ProtectedRoute>
-                                            <Layout>
-                                                <Profile />
-                                            </Layout>
-                                        </ProtectedRoute>
-                                    }
-                                />
-                                <Route
-                                    path="/admin/*"
-                                    element={
-                                        <AdminRoute>
-                                            <Layout>
-                                                <AdminPanel />
-                                            </Layout>
-                                        </AdminRoute>
-                                    }
-                                />
-                            </Routes>
+                            <div className="min-h-screen bg-gray-100">
+                                <Navigation />
+                                <main className="py-10">
+                                    <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
+                                        <Routes>
+                                            <Route path="/login" element={<Login />} />
+                                            <Route path="/register" element={<Register />} />
+                                            <Route
+                                                path="/"
+                                                element={
+                                                    <ProtectedRoute>
+                                                        <Layout>
+                                                            <Home />
+                                                        </Layout>
+                                                    </ProtectedRoute>
+                                                }
+                                            />
+                                            <Route
+                                                path="/history"
+                                                element={
+                                                    <ProtectedRoute>
+                                                        <Layout>
+                                                            <History />
+                                                        </Layout>
+                                                    </ProtectedRoute>
+                                                }
+                                            />
+                                            <Route
+                                                path="/my-feedback"
+                                                element={
+                                                    <ProtectedRoute>
+                                                        <Layout>
+                                                            <MyFeedback />
+                                                        </Layout>
+                                                    </ProtectedRoute>
+                                                }
+                                            />
+                                            <Route
+                                                path="/profile"
+                                                element={
+                                                    <ProtectedRoute>
+                                                        <Layout>
+                                                            <Profile />
+                                                        </Layout>
+                                                    </ProtectedRoute>
+                                                }
+                                            />
+                                            <Route
+                                                path="/admin/*"
+                                                element={
+                                                    <AdminRoute>
+                                                        <Layout>
+                                                            <AdminPanel />
+                                                        </Layout>
+                                                    </AdminRoute>
+                                                }
+                                            />
+                                            <Route path="*" element={<Navigate to="/" replace />} />
+                                        </Routes>
+                                    </div>
+                                </main>
+                            </div>
                         </Router>
                     </WebSocketProvider>
                 </AuthProvider>
             </ThemeProvider>
         </QueryClientProvider>
     );
-}
+};
 
 export default App; 
