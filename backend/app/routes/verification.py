@@ -4,11 +4,18 @@ from app.models import db, VerificationResult, Feedback
 from app.services.news_verifier import NewsVerifier
 from datetime import datetime
 from sqlalchemy import desc
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 verification_bp = Blueprint('verification', __name__)
 
+# Rate limits
+VERIFICATION_LIMIT = "10 per minute"
+FEEDBACK_LIMIT = "20 per minute"
+
 @verification_bp.route('/verify', methods=['POST'])
 @jwt_required()
+@limiter.limit(VERIFICATION_LIMIT)
 def verify_news():
     data = request.get_json()
     url = data.get('url')
@@ -80,6 +87,7 @@ def get_history():
 
 @verification_bp.route('/feedback', methods=['POST'])
 @jwt_required()
+@limiter.limit(FEEDBACK_LIMIT)
 def submit_feedback():
     try:
         data = request.get_json()
