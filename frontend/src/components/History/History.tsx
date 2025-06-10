@@ -1,224 +1,177 @@
-import React, { useState } from 'react';
-import {
-    Container,
-    Paper,
-    Typography,
-    Box,
-    Grid,
-    Card,
-    CardContent,
-    TablePagination,
-    Chip,
-    IconButton,
-    Collapse,
-    TextField,
-    InputAdornment,
-    Alert,
-} from '@mui/material';
-import {
-    ExpandMore as ExpandMoreIcon,
-    ExpandLess as ExpandLessIcon,
-    Search as SearchIcon,
-    ThumbUp as ThumbUpIcon,
-    ThumbDown as ThumbDownIcon,
-} from '@mui/icons-material';
-import { useQuery } from 'react-query';
-import { news } from '../../services/api';
-import { NewsRequest } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import api from '../../services/api';
 
-export const History: React.FC = () => {
-    const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(5);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [expandedId, setExpandedId] = useState<number | null>(null);
+interface VerificationHistory {
+  id: number;
+  url: string;
+  isFake: boolean;
+  confidence: number;
+  reasons: string[];
+  timestamp: string;
+}
 
-    const { data, isLoading, error } = useQuery(
-        ['news-history', page, rowsPerPage],
-        () => news.getHistory(page + 1, rowsPerPage),
-        {
-            keepPreviousData: true,
-        }
-    );
+const History: React.FC = () => {
+  const { user } = useAuth();
+  const [history, setHistory] = useState<VerificationHistory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'fake' | 'real'>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'confidence'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-    const handleChangePage = (event: unknown, newPage: number) => {
-        setPage(newPage);
-    };
+  useEffect(() => {
+    fetchHistory();
+  }, []);
 
-    const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
-        setRowsPerPage(parseInt(event.target.value, 10));
-        setPage(0);
-    };
-
-    const handleExpandClick = (id: number) => {
-        setExpandedId(expandedId === id ? null : id);
-    };
-
-    const getConfidenceColor = (score: number) => {
-        if (score >= 80) return 'success';
-        if (score >= 60) return 'warning';
-        return 'error';
-    };
-
-    const filteredRequests = data?.items.filter((request) =>
-        searchTerm
-            ? request.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              request.analysis_result.toLowerCase().includes(searchTerm.toLowerCase())
-            : true
-    );
-
-    if (isLoading) {
-        return (
-            <Container maxWidth="lg">
-                <Box sx={{ mt: 4 }}>
-                    <Typography>Loading history...</Typography>
-                </Box>
-            </Container>
-        );
+  const fetchHistory = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/verify/history');
+      setHistory(response.data);
+      setError(null);
+    } catch (err) {
+      setError('Failed to load verification history');
+      console.error('Error fetching history:', err);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    if (error) {
-        return (
-            <Container maxWidth="lg">
-                <Box sx={{ mt: 4 }}>
-                    <Alert severity="error">
-                        Failed to load history: {(error as any).response?.data?.error || 'Unknown error'}
-                    </Alert>
-                </Box>
-            </Container>
-        );
+  const filteredHistory = history.filter(item => {
+    if (filter === 'all') return true;
+    return filter === 'fake' ? item.isFake : !item.isFake;
+  });
+
+  const sortedHistory = [...filteredHistory].sort((a, b) => {
+    if (sortBy === 'date') {
+      return sortOrder === 'asc'
+        ? new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        : new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    } else {
+      return sortOrder === 'asc'
+        ? a.confidence - b.confidence
+        : b.confidence - a.confidence;
     }
+  });
 
+  const toggleSortOrder = () => {
+    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+  };
+
+  if (loading) {
     return (
-        <Container maxWidth="lg">
-            <Box sx={{ mt: 4 }}>
-                <Paper elevation={3} sx={{ p: 3 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-                        <Typography variant="h5">Analysis History</Typography>
-                        <TextField
-                            size="small"
-                            placeholder="Search history..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchIcon />
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                    </Box>
-
-                    <Grid container spacing={3}>
-                        {filteredRequests?.map((request: NewsRequest) => (
-                            <Grid item xs={12} key={request.id}>
-                                <Card>
-                                    <CardContent>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <Box sx={{ flex: 1 }}>
-                                                <Typography
-                                                    variant="body1"
-                                                    sx={{
-                                                        mb: 2,
-                                                        overflow: 'hidden',
-                                                        textOverflow: 'ellipsis',
-                                                        display: '-webkit-box',
-                                                        WebkitLineClamp: expandedId === request.id ? 'unset' : 3,
-                                                        WebkitBoxOrient: 'vertical',
-                                                    }}
-                                                >
-                                                    {request.content}
-                                                </Typography>
-                                                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                                                    <Chip
-                                                        label={request.analysis_result.toUpperCase()}
-                                                        color={request.analysis_result === 'reliable' ? 'success' : 'error'}
-                                                        size="small"
-                                                    />
-                                                    <Chip
-                                                        label={`${Math.round(request.confidence_score)}% Confidence`}
-                                                        color={getConfidenceColor(request.confidence_score)}
-                                                        size="small"
-                                                    />
-                                                    {request.is_url && (
-                                                        <Chip label="URL" color="primary" size="small" />
-                                                    )}
-                                                </Box>
-                                                <Typography variant="caption" color="textSecondary">
-                                                    Analyzed on: {new Date(request.created_at).toLocaleString()}
-                                                </Typography>
-                                            </Box>
-                                            <IconButton
-                                                onClick={() => handleExpandClick(request.id)}
-                                                sx={{ ml: 2 }}
-                                            >
-                                                {expandedId === request.id ? (
-                                                    <ExpandLessIcon />
-                                                ) : (
-                                                    <ExpandMoreIcon />
-                                                )}
-                                            </IconButton>
-                                        </Box>
-
-                                        <Collapse in={expandedId === request.id}>
-                                            <Box sx={{ mt: 2 }}>
-                                                <Typography variant="h6" gutterBottom>
-                                                    Feedback
-                                                </Typography>
-                                                {request.feedback.length > 0 ? (
-                                                    request.feedback.map((feedback) => (
-                                                        <Card
-                                                            key={feedback.id}
-                                                            variant="outlined"
-                                                            sx={{ mb: 1 }}
-                                                        >
-                                                            <CardContent>
-                                                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                                                                    {feedback.agrees_with_analysis ? (
-                                                                        <ThumbUpIcon color="success" sx={{ mr: 1 }} />
-                                                                    ) : (
-                                                                        <ThumbDownIcon color="error" sx={{ mr: 1 }} />
-                                                                    )}
-                                                                    <Typography variant="subtitle2">
-                                                                        {feedback.user.username}
-                                                                    </Typography>
-                                                                </Box>
-                                                                {feedback.comment && (
-                                                                    <Typography variant="body2">
-                                                                        {feedback.comment}
-                                                                    </Typography>
-                                                                )}
-                                                                <Typography variant="caption" color="textSecondary">
-                                                                    Posted on: {new Date(feedback.created_at).toLocaleString()}
-                                                                </Typography>
-                                                            </CardContent>
-                                                        </Card>
-                                                    ))
-                                                ) : (
-                                                    <Typography color="textSecondary">
-                                                        No feedback yet
-                                                    </Typography>
-                                                )}
-                                            </Box>
-                                        </Collapse>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-                        ))}
-                    </Grid>
-
-                    <TablePagination
-                        component="div"
-                        count={data?.total || 0}
-                        page={page}
-                        onPageChange={handleChangePage}
-                        rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={handleChangeRowsPerPage}
-                        rowsPerPageOptions={[5, 10, 25]}
-                        sx={{ mt: 2 }}
-                    />
-                </Paper>
-            </Box>
-        </Container>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
     );
-}; 
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Verification History</h1>
+        <p className="mt-2 text-sm text-gray-600">
+          View and analyze your past news verifications
+        </p>
+      </div>
+
+      {/* Filters and Sorting */}
+      <div className="mb-6 flex flex-wrap gap-4 items-center">
+        <div className="flex items-center space-x-4">
+          <label className="text-sm font-medium text-gray-700">Filter:</label>
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as 'all' | 'fake' | 'real')}
+            className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          >
+            <option value="all">All Results</option>
+            <option value="fake">Fake News</option>
+            <option value="real">Real News</option>
+          </select>
+        </div>
+
+        <div className="flex items-center space-x-4">
+          <label className="text-sm font-medium text-gray-700">Sort by:</label>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'date' | 'confidence')}
+            className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          >
+            <option value="date">Date</option>
+            <option value="confidence">Confidence</option>
+          </select>
+        </div>
+
+        <button
+          onClick={toggleSortOrder}
+          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          {sortOrder === 'asc' ? '↑ Ascending' : '↓ Descending'}
+        </button>
+      </div>
+
+      {/* Results */}
+      <div className="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul className="divide-y divide-gray-200">
+          {sortedHistory.map((item) => (
+            <li key={item.id} className="px-6 py-4 hover:bg-gray-50">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-600 truncate">
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      {item.url}
+                    </a>
+                  </p>
+                  <div className="mt-2 flex items-center text-sm text-gray-500">
+                    <span
+                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        item.isFake
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}
+                    >
+                      {item.isFake ? 'Likely Fake' : 'Likely Real'}
+                    </span>
+                    <span className="ml-4">
+                      Confidence: {item.confidence}%
+                    </span>
+                    <span className="ml-4">
+                      {new Date(item.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                  {item.reasons.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-600">Reasons:</p>
+                      <ul className="mt-1 list-disc list-inside text-sm text-gray-500">
+                        {item.reasons.map((reason, index) => (
+                          <li key={index}>{reason}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {sortedHistory.length === 0 && (
+        <div className="text-center py-12">
+          <p className="text-gray-500">No verification history found</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default History; 

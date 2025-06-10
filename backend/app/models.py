@@ -1,6 +1,7 @@
 from app import db
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+import json
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -18,6 +19,7 @@ class User(db.Model):
     news_requests = db.relationship('NewsRequest', backref='user', lazy=True)
     feedback = db.relationship('Feedback', backref='user', lazy=True)
     failed_logins = db.relationship('FailedLogin', backref='user', lazy=True)
+    verifications = db.relationship('VerificationResult', backref='user', lazy=True)
     
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -64,4 +66,26 @@ class BlockedUser(db.Model):
     ip_address = db.Column(db.String(45), nullable=False)
     reason = db.Column(db.String(200))
     blocked_until = db.Column(db.DateTime, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) 
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class VerificationResult(db.Model):
+    __tablename__ = 'verification_results'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    is_fake = db.Column(db.Boolean, nullable=False)
+    confidence = db.Column(db.Float, nullable=False)
+    reasons = db.Column(db.JSON, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def __init__(self, **kwargs):
+        super(VerificationResult, self).__init__(**kwargs)
+        if isinstance(self.reasons, list):
+            self.reasons = json.dumps(self.reasons)
+    
+    @property
+    def reasons_list(self):
+        if isinstance(self.reasons, str):
+            return json.loads(self.reasons)
+        return self.reasons 

@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, VerificationResult
 from app.services.news_verifier import NewsVerifier
 from datetime import datetime
+from sqlalchemy import desc
 
 verification_bp = Blueprint('verification', __name__)
 
@@ -48,4 +49,31 @@ def verify_news():
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@verification_bp.route('/history', methods=['GET'])
+@jwt_required()
+def get_history():
+    try:
+        # Get current user
+        user_id = get_jwt_identity()
+        
+        # Get verification history for the user
+        history = VerificationResult.query.filter_by(user_id=user_id)\
+            .order_by(desc(VerificationResult.timestamp))\
+            .all()
+        
+        # Format the response
+        history_data = [{
+            'id': result.id,
+            'url': result.url,
+            'isFake': result.is_fake,
+            'confidence': result.confidence,
+            'reasons': result.reasons,
+            'timestamp': result.timestamp.isoformat()
+        } for result in history]
+        
+        return jsonify(history_data)
+        
+    except Exception as e:
         return jsonify({'error': str(e)}), 500 
