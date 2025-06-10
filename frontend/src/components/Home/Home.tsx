@@ -13,6 +13,8 @@ import {
     CardContent,
     Grid,
     Chip,
+    ToggleButtonGroup,
+    ToggleButton,
 } from '@mui/material';
 import { useMutation } from 'react-query';
 import { news } from '../../services/api';
@@ -21,6 +23,7 @@ import { NewsRequest } from '../../types';
 export const Home: React.FC = () => {
     const [content, setContent] = useState('');
     const [error, setError] = useState<string | null>(null);
+    const [inputMode, setInputMode] = useState<'link' | 'text'>('link');
 
     const analyzeMutation = useMutation(
         (content: string) => news.analyze(content),
@@ -34,10 +37,21 @@ export const Home: React.FC = () => {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!content.trim()) {
-            setError('Please enter a URL or text to analyze');
+            setError(`Please enter a ${inputMode === 'link' ? 'URL' : 'text'} to analyze`);
             return;
         }
         analyzeMutation.mutate(content);
+    };
+
+    const handleInputModeChange = (
+        event: React.MouseEvent<HTMLElement>,
+        newMode: 'link' | 'text' | null
+    ) => {
+        if (newMode !== null) {
+            setInputMode(newMode);
+            setContent('');
+            setError(null);
+        }
     };
 
     const getConfidenceColor = (score: number) => {
@@ -103,7 +117,7 @@ export const Home: React.FC = () => {
                         News Verification
                     </Typography>
                     <Typography variant="subtitle1" align="center" color="textSecondary" sx={{ mb: 4 }}>
-                        Enter a news article URL or paste the text content to analyze its reliability
+                        Choose your input method and analyze the reliability of news
                     </Typography>
 
                     {error && (
@@ -113,12 +127,28 @@ export const Home: React.FC = () => {
                     )}
 
                     <Box component="form" onSubmit={handleSubmit}>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+                            <ToggleButtonGroup
+                                value={inputMode}
+                                exclusive
+                                onChange={handleInputModeChange}
+                                aria-label="input mode"
+                            >
+                                <ToggleButton value="link" aria-label="link input">
+                                    Link
+                                </ToggleButton>
+                                <ToggleButton value="text" aria-label="text input">
+                                    Text
+                                </ToggleButton>
+                            </ToggleButtonGroup>
+                        </Box>
+
                         <TextField
                             fullWidth
-                            multiline
-                            rows={4}
+                            multiline={inputMode === 'text'}
+                            rows={inputMode === 'text' ? 4 : 1}
                             variant="outlined"
-                            placeholder="Enter URL or paste news content here..."
+                            placeholder={inputMode === 'link' ? "Enter news article URL..." : "Paste news content here..."}
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             disabled={analyzeMutation.isLoading}
