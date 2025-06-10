@@ -7,6 +7,7 @@ import os
 from .db import init_db
 from .routes.auth import auth_bp
 from .routes.news import news_bp
+from .routes.verification import verification_bp
 from ..config import config
 
 def create_app(config_name=None):
@@ -35,6 +36,7 @@ def create_app(config_name=None):
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(news_bp, url_prefix='/api/news')
+    app.register_blueprint(verification_bp, url_prefix='/api/verify')
     
     # Error handlers
     @app.errorhandler(404)

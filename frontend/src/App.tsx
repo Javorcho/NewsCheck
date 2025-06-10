@@ -14,6 +14,7 @@ import { History } from './components/History/History';
 import { MyFeedback } from './components/Feedback/MyFeedback';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Navigation } from './components/Navigation';
+import NewsVerification from './components/NewsVerification';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -68,7 +69,7 @@ const App: React.FC = () => {
                                                 element={
                                                     <ProtectedRoute>
                                                         <Layout>
-                                                            <Home />
+                                                            <NewsVerification />
                                                         </Layout>
                                                     </ProtectedRoute>
                                                 }
