@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from app.models import db, VerificationResult
+from app.models import db, VerificationResult, Feedback
 from app.services.news_verifier import NewsVerifier
 from datetime import datetime
 from sqlalchemy import desc
@@ -76,4 +76,40 @@ def get_history():
         return jsonify(history_data)
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@verification_bp.route('/feedback', methods=['POST'])
+@jwt_required()
+def submit_feedback():
+    try:
+        data = request.get_json()
+        user_id = get_jwt_identity()
+        
+        # Validate required fields
+        if not all(k in data for k in ['verification_id', 'agrees_with_analysis']):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Check if verification exists
+        verification = VerificationResult.query.get(data['verification_id'])
+        if not verification:
+            return jsonify({'error': 'Verification not found'}), 404
+        
+        # Create feedback
+        feedback = Feedback(
+            user_id=user_id,
+            verification_id=data['verification_id'],
+            agrees_with_analysis=data['agrees_with_analysis'],
+            comment=data.get('comment')
+        )
+        
+        db.session.add(feedback)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Feedback submitted successfully',
+            'feedback_id': feedback.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'error': str(e)}), 500 

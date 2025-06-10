@@ -46,10 +46,14 @@ class Feedback(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    news_request_id = db.Column(db.Integer, db.ForeignKey('news_requests.id'), nullable=False)
+    verification_id = db.Column(db.Integer, db.ForeignKey('verification_results.id'), nullable=False)
     agrees_with_analysis = db.Column(db.Boolean, nullable=False)
     comment = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship('User', backref='feedback')
+    verification = db.relationship('VerificationResult', backref='feedback')
 
 class FailedLogin(db.Model):
     __tablename__ = 'failed_logins'
